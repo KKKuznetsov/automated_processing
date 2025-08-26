@@ -2,9 +2,11 @@
 r"""
 Client_02_processing.py — одна запись (TASK_ID) -> один итоговый файл.
 Поддержка csv / xls / xlsx. Нормализация 'День' и маркетинга.
+Итог сохраняется в CSV (utf-8-sig, разделитель ';').
 """
 
 import os
+import csv
 from pathlib import Path
 import pandas as pd
 from openpyxl import load_workbook
@@ -178,7 +180,6 @@ def main():
         print(f"[WARN] Файл не найден: {src}")
         return
 
-    # читаем источник
     suf = src.suffix.lower()
     if suf == ".csv":
         df = read_csv(src)
@@ -213,8 +214,8 @@ def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     base = src.stem
-    out_path = OUTPUT_DIR / f"{CLIENT_NAME}_id{task_id}_{base}_{ts}.xlsx"
-    out.to_excel(out_path, index=False)
+    out_path = OUTPUT_DIR / f"{CLIENT_NAME}_id{task_id}_{base}_{ts}.csv"
+    out.to_csv(out_path, sep=";", index=False, encoding="utf-8-sig", quoting=csv.QUOTE_MINIMAL)
     print(f"[OK] Сохранён файл: {out_path}")
 
 if __name__ == "__main__":
