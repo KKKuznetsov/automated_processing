@@ -50,8 +50,8 @@ DB = dict(
     host="localhost",
     port=5432,
     database="etl_demo",
-    user="postgres",
-    password="X9g4e153tyuF2",
+    user="ваш логин",
+    password="ваш пароль",
 )
 
 # === СТАТУСЫ ===
@@ -395,3 +395,4 @@ def run_pipeline():
 
 if __name__ == "__main__":
     run_pipeline()
+
