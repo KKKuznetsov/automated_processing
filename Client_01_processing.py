@@ -2,9 +2,11 @@
 r"""
 Client_01_processing.py — обрабатывает одну запись (TASK_ID) -> один итоговый файл.
 Поддержка csv / xls / xlsx. Для Excel ищем шапку в первых строках.
+Итог сохраняется в CSV (utf-8-sig, разделитель ';').
 """
 
 import os
+import csv
 from pathlib import Path
 import pandas as pd
 from openpyxl import load_workbook
@@ -75,7 +77,7 @@ def read_xls(file_path: Path) -> pd.DataFrame:
         return pd.read_excel(file_path, engine="xlrd")
     except Exception as e:
         print(f"[WARN] Нужен пакет 'xlrd' для чтения .xls: {e}")
-        # fallback: попробуем стандартный движок (скорее всего не сработает для .xls)
+        # fallback
         try:
             return pd.read_excel(file_path)
         except Exception as e2:
@@ -92,7 +94,6 @@ def find_header_row(df: pd.DataFrame) -> int | None:
 
 def parse_date(date_str):
     s = str(date_str).strip().replace("  ", " ")
-    # Популярные форматы
     try:
         dt = datetime.strptime(s, "%d.%m.%Y")
         return dt.strftime("%d.%m.%Y")
@@ -103,7 +104,6 @@ def parse_date(date_str):
         return dt.strftime("%d.%m.%Y")
     except Exception:
         pass
-    # RU месяцы в коротком виде
     months_ru = {'янв':1,'фев':2,'мар':3,'апр':4,'май':5,'июн':6,'июл':7,'авг':8,'сен':9,'окт':10,'ноя':11,'дек':12}
     parts = s.split()
     if len(parts) >= 3:
@@ -141,15 +141,12 @@ def transform(df: pd.DataFrame, reg_row: pd.Series, header_cols: list[str]) -> p
         elif src == "дата_документа_period" and "дата_документа" in df.columns:
             out[target] = df["дата_документа"].apply(parse_date)
 
-    # Особая логика накладной
     if "номер_документа" in df.columns and "дата_документа" in df.columns:
         out["naklad"] = df["номер_документа"].astype(str) + " от " + df["дата_документа"].apply(lambda x: parse_date(x) or "")
 
-    # Фильтр: количество != 0
     if "amount_type_1" in out.columns:
         out = out[out["amount_type_1"] != 0]
 
-    # Добиваем до полного набора колонок из header + порядок
     for col in header_cols:
         if col not in out.columns:
             out[col] = None
@@ -157,7 +154,6 @@ def transform(df: pd.DataFrame, reg_row: pd.Series, header_cols: list[str]) -> p
     return out if not out.empty else None
 
 def main():
-    # берём id задачи из окружения
     task_id_env = os.getenv("TASK_ID")
     if not task_id_env or not task_id_env.isdigit():
         print("[INFO] TASK_ID не передан оркестратором — нечего делать.")
@@ -171,7 +167,6 @@ def main():
         return
     row = row_sel.iloc[0]
 
-    # защита от «не своего» задания
     if str(row["client_name"]) != CLIENT_NAME or str(row["report_type"]) != TARGET_REPORT_TYPE:
         print(f"[INFO] id={task_id} не относится к {CLIENT_NAME}/{TARGET_REPORT_TYPE}. Пропуск.")
         return
@@ -181,7 +176,6 @@ def main():
         print(f"[WARN] Файл не найден: {src_path}")
         return
 
-    # читаем источник
     if src_path.suffix.lower() == ".csv":
         df = read_csv(src_path)
     elif src_path.suffix.lower() == ".xlsx":
@@ -194,7 +188,6 @@ def main():
         if df_raw.empty:
             print(f"[WARN] Пустая таблица XLS: {src_path}")
             return
-        # для .xls часто заголовки уже в первой строке, но приведём к нижнему регистру
         try:
             df_raw.columns = [str(c).strip().lower() for c in df_raw.columns]
             df = df_raw
@@ -217,8 +210,8 @@ def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     base = src_path.stem
-    out_path = OUTPUT_DIR / f"{CLIENT_NAME}_id{task_id}_{base}_{ts}.xlsx"
-    out.to_excel(out_path, index=False)
+    out_path = OUTPUT_DIR / f"{CLIENT_NAME}_id{task_id}_{base}_{ts}.csv"
+    out.to_csv(out_path, sep=";", index=False, encoding="utf-8-sig", quoting=csv.QUOTE_MINIMAL)
     print(f"[OK] Сохранён файл: {out_path}")
 
 if __name__ == "__main__":
